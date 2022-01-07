@@ -1,0 +1,1023 @@
+---
+title: "Part 0 - Getting Started"
+author: "Haneef Ahamed Mohammad"
+date: "04/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+options(warn=-1)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+### Loading the lIbraries
+
+```{r, load_packages}
+library(tidyverse)
+library(rstanarm)
+library(caret)
+library(ranger)
+library(xgboost)
+```
+
+### Uploading the data
+
+```{r, eval=FALSE}
+df_start <- readr::read_csv('small_train_data.csv', col_names = TRUE)
+```
+
+```{r, eval=FALSE}
+train_x <- readr::read_csv('train_input_set_x.csv', col_names = TRUE)
+```
+```{r, eval=FALSE}
+train_v <- readr::read_csv('train_input_set_v.csv', col_names = TRUE)
+```
+```{r, eval=FALSE}
+train_outputs <- readr::read_csv('train_outputs.csv', col_names = TRUE)
+```
+
+```{r, eval=FALSE}
+ready_x_A <- train_x %>% 
+  left_join(train_outputs, by = 'run_id') %>% 
+  select(-run_id, -outcome)
+
+ready_x_A %>% glimpse()
+```
+
+```{r, eval=FALSE}
+ready_v_A <- train_v %>% 
+  left_join(train_outputs, by = 'run_id') %>% 
+  select(-run_id, -outcome)
+
+ready_v_A %>% glimpse()
+```
+
+```{r, eval=FALSE}
+ready_x_B <- train_x %>% 
+  left_join(train_outputs, by = 'run_id') %>% 
+  select(-run_id, -response) %>% 
+  mutate(outcome = factor(outcome, levels = c("event", "non_event")))
+
+ready_x_B %>% glimpse()
+```
+
+```{r, eval=FALSE}
+ready_v_B <- train_v %>% 
+  left_join(train_outputs, by = 'run_id') %>% 
+  select(-run_id, -response) %>% 
+  mutate(outcome = factor(outcome, levels = c("event", "non_event")))
+
+ready_v_B %>% glimpse()
+```
+
+### Small problem linear model
+
+
+Model for all Additive features of Small Dataset
+
+```{r, eval=FALSE}
+mod_02_add <- lm(response ~ ., data = df_start)
+```
+
+```{r, eval=FALSE}
+mod_02_add %>% readr::write_rds("small_additive_model.rds")
+```
+
+Model for all Pairwise Interactions of Small Dataset
+
+```{r, eval=FALSE}
+mod_02_pair <- lm(response ~ .^2, data = df_start)
+```
+
+```{r, eval=FALSE}
+mod_02_pair %>% readr::write_rds("small_pairwise_model.rds")
+```
+
+Model for Quadratic polynomial with linear interactions
+
+```{r, eval=FALSE}
+mod_02_quad_Linear <- lm(response ~ x07 + x09 + x10 + x11 + x21 + I(x07^2)+ I(x09^2) + I(x10^2) + I(x11^2) + I(x21^2), data = df_start)
+```
+
+```{r, eval=FALSE}
+mod_02_quad_Linear %>% readr::write_rds("small_quad_Linear_model.rds")
+```
+
+Model for Linear and polynomial interactions between two inputs
+
+```{r, eval=FALSE}
+mod_02_poly_Linear <- lm(response ~ (x07 + I(x07^2))*(x21 + I(x21^2)), data = df_start)
+```
+
+```{r, eval=FALSE}
+mod_02_poly_Linear %>% readr::write_rds("small_poly_Linear_model.rds")
+```
+
+Model with spline and polynomial interaction between two iputs 
+
+```{r, eval=FALSE}
+mod_02_spline_Linear <- lm(response ~ splines::ns(x07, 6)*(x21 + I(x21^2)), data = df_start)
+```
+
+```{r, eval=FALSE}
+mod_02_spline_Linear %>% readr::write_rds("small_spline_Linear_model.rds")
+```
+
+
+Model with spline interaction between two inputs 
+
+```{r, eval=FALSE}
+mod_02_spline_spline <- lm(response ~ splines::ns(x09, 6)*splines::ns(x11, 6), data = df_start)
+```
+
+```{r, eval=FALSE}
+mod_02_spline_spline %>% readr::write_rds("small_spline_spline_model.rds")
+```
+
+### Bayesian Models
+
+Bayesian Model for all pairwise interactions
+
+```{r, eval=FALSE, message = FALSE, warning = FALSE}
+mod_02_baye_pair <- stan_lm(response ~ .^2, data = df_start, prior = NULL, seed = 20202595)
+```
+
+```{r, eval=FALSE, message = FALSE, warning = FALSE}
+mod_02_baye_pair %>% readr::write_rds("small_baye_pairwise_model.rds")
+```
+
+Bayesian Model for spline interaction between two inputs
+
+```{r, eval=FALSE, message = FALSE, warning = FALSE}
+mod_02_baye_spline <- stan_lm(response ~ splines::ns(x09, 6)*splines::ns(x11, 6), data = df_start, prior = NULL, seed = 20202595)
+```
+
+```{r, eval=FALSE, message = FALSE, warning = FALSE}
+mod_02_baye_spline %>% readr::write_rds("small_baye_spline_model.rds")
+```
+
+
+### Regression Models
+
+### Linear Models
+
+Model for all additive features of X-variable of Large Dataset
+
+```{r, eval=FALSE}
+my_ctrl_RSME <- trainControl(method = "repeatedcv", number = 5, repeats = 2)
+my_metric <- "RSME"
+```
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_03_x_A_add <- train(response ~ ., 
+                    data = ready_x_A,
+                    method = "lm",
+                    metric = my_metric,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_RSME)
+```
+
+```{r, eval=FALSE}
+mod_03_x_A_add %>% readr::write_rds("large_x_A_add_model.rds")
+```
+
+Model for all Pairwise Interactions of Large Dataset
+
+```{r, eval=FALSE}
+set.seed(2021)
+mod_03_x_A_pair <- train(response ~ (.)^2, 
+                    data = ready_x_A,
+                    method = "lm",
+                    metric = my_metric,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_RSME)
+```
+
+```{r, eval=FALSE}
+mod_03_x_A_pair %>% readr::write_rds("large_x_A_pair_model.rds")
+```
+
+Model for spline interactions for two inputs X09 and X11
+
+```{r, eval=FALSE}
+set.seed(2021)
+mod_03_x_A_spline_spline <- train(response ~ splines::ns(x09, 6)*splines::ns(x11, 6), 
+                    data = ready_x_A,
+                    method = "lm",
+                    metric = my_metric,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_RSME)
+
+```
+
+```{r, eval=FALSE}
+mod_03_x_A_spline_spline %>% readr::write_rds("large_x_A_spline_spline_model.rds")
+```
+
+### Elastic Net of X-variable for regression
+
+Model of elastic net for pairwise
+
+
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_03_x_A_enet_pair <- train(response ~ (.^2), 
+                    data = ready_x_A,
+                    method = 'glmnet',
+                    metric = my_metric,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_RSME)
+```
+
+```{r, eval=FALSE}
+mod_03_x_A_enet_pair %>% readr::write_rds("large_x_A_enet_pair_model.rds")
+```
+
+Model of elastic net for complex interaction
+
+```{r, eval=FALSE}
+set.seed(2021)
+mod_03_x_A_enet_poly <- train(response ~ (x07 + x09 + x10 + x11 + x21)^2, 
+                    data = ready_x_A,
+                    method = 'glmnet',
+                    metric = my_metric,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_RSME)
+```
+
+```{r, eval=FALSE}
+mod_03_x_A_enet_poly %>% readr::write_rds("large_x_A_enet_poly_model.rds")
+```
+
+
+
+### Neural Network of X-variable for Regression
+
+Model of Neural Network with tuning grid 
+
+```{r, eval=FALSE}
+nnet_grid <- expand.grid(size = c(2, 4, 6, 8, 10, 12),
+                         decay = exp(seq(-6, 2, length.out = 13)))
+
+set.seed(2021)
+                    
+mod_03_x_A_nnet_add <- train(response ~ ., 
+                    data = ready_x_A,
+                    method = "nnet",
+                    metric = my_metric,
+                    tuneGrid = nnet_grid,
+                    preProcess = c("center", "scale"),
+                    trControl = my_ctrl_RSME,
+                    trace = FALSE,
+                    linout = FALSE)
+```
+
+
+```{r, eval=FALSE}
+mod_03_x_A_nnet_add %>% readr::write_rds("large_x_A_nnet_add_model.rds")
+```
+
+### Random Forest of X-variable for Regression
+
+Model of Random Forest for X-variable in Regression
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_x_A_rf_add <- train(response ~ ., 
+                    data = ready_x_A,
+                    method = 'rf',
+                    metric = my_metric,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_RSME)
+```
+
+```{r, eval=FALSE}
+mod_x_A_rf_add %>% readr::write_rds("large_x_A_rf_add_model.rds")
+```
+
+Model of XgBoost for X-variable in Regression
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+fit_xgb <- train(response ~ .,
+                 data = ready_x_A,
+                 method = "xgbTree",
+                 metric = my_metric,
+                 trControl = my_ctrl_RSME,
+                 objective = 'reg:squarederror')
+```
+
+
+```{r, eval=FALSE}
+xgb_grid_x_A <- expand.grid(nrounds = seq(100, 700, by = 100),
+                        max_depth = c(3, 4, 5),
+                        eta = c(0.5*fit_xgb$bestTune$eta, fit_xgb$bestTune$eta),
+                        gamma = fit_xgb$bestTune$gamma,
+                        colsample_bytree = fit_xgb$bestTune$colsample_bytree,
+                        min_child_weight = fit_xgb$bestTune$min_child_weight,
+                        subsample = fit_xgb$bestTune$subsample)
+
+set.seed(2021)
+                      
+mod_03_x_A_xgb_add <- train(response ~ ., 
+                    data = ready_x_A,
+                    method = "xgbTree",
+                      tuneGrid = xgb_grid_x_A,
+                      metric = my_metric,
+                      trControl = my_ctrl_RSME,
+                      objective = 'reg:squarederror')
+```
+
+```{r, eval=FALSE}
+fit_xgb %>% readr::write_rds("large_x_A_fit_xgb_add_model.rds")
+```
+
+
+```{r, eval=FALSE}
+mod_03_x_A_xgb_add %>% readr::write_rds("large_x_A_xgb_add_model.rds")
+```
+
+### CART of X-variable for Regression
+
+Model of CART for X-variable for Regression
+
+```{r, eval=FALSE}
+set.seed(2021)
+mod_03_x_A_rpart_add <- train(response ~ ., 
+                    data = ready_x_A,
+                    method = 'rpart',
+                    metric = my_metric,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_RSME)
+```
+
+```{r, eval=FALSE}
+mod_03_x_A_rpart_add %>% readr::write_rds("large_x_A_rpart_add_model.rds")
+```
+
+### SVM of X-variable for Regression
+
+Model of SVM for X-variable for Regression
+
+```{r, eval=FALSE}
+set.seed(2021)
+mod_03_x_A_svm_add <- train(response ~ ., 
+                    data = ready_x_A,
+                    method = 'svmRadial',
+                    metric = my_metric,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_RSME)
+```
+
+```{r, eval=FALSE}
+mod_03_x_A_svm_add %>% readr::write_rds("large_x_A_svm_add_model.rds")
+```
+
+### V-variable
+
+### Linear Models of V-variable for Regression
+
+Model for all additive features of V-variable of Large Dataset
+
+```{r, eval=FALSE}
+set.seed(2021)
+mod_03_v_A_add <- train(response ~ .,
+                  data = ready_v_A,
+                  method = "lm",
+                  metric = my_metric,
+                  preProcess = c("center", "scale"),
+                  trControl = my_ctrl_RSME)
+
+```
+
+```{r, eval=FALSE}
+mod_03_v_A_add %>% readr::write_rds("large_v_A_add_model.rds")
+```
+
+Model for all Pairwise Interactions of Large Dataset
+
+```{r, eval=FALSE}
+set.seed(2021)
+mod_03_v_A_pair <- train(response ~ (.)^2, 
+                      data = ready_v_A,
+                  method = "lm",
+                  metric = my_metric,
+                  preProcess = c("center", "scale"),
+                  trControl = my_ctrl_RSME)
+```
+
+```{r, eval=FALSE}
+mod_03_v_A_pair %>% readr::write_rds("large_v_A_pair_model.rds")
+```
+
+Model for spline interactions for two inputs V09 and V11
+
+```{r, eval=FALSE}
+set.seed(2021)
+mod_03_v_A_spline_spline <- train(response ~ splines::ns(v09, 6)*splines::ns(v11, 6), 
+                               data = ready_v_A,
+                               method = "lm",
+                               metric = my_metric,
+                               preProcess = c("center", "scale"),
+                               trControl = my_ctrl_RSME)
+                  
+```
+
+```{r, eval=FALSE}
+mod_03_v_A_spline_spline %>% readr::write_rds("large_v_A_spline_spline_model.rds")
+```
+
+### Elastic net of V-variable for Regression
+
+Model of elastic net for pairwise
+
+```{r, eval=FALSE}
+set.seed(2021)
+mod_03_v_A_enet_pair <- train(response ~ (.^2), 
+                    data = ready_v_A,
+                    method = "glmnet",
+                    metric = my_metric,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_RSME)
+```
+
+```{r, eval=FALSE}
+mod_03_v_A_enet_pair %>% readr::write_rds("large_v_A_enet_pair_model.rds")
+```
+
+Model of elastic net for polynomial interaction for V-variable
+
+```{r, eval=FALSE}
+set.seed(2021)
+mod_03_v_A_enet_poly <- train(response ~ (v07+I(v07^2))*(v09+I(v09^2)), 
+                    data = ready_v_A,
+                    method = "glmnet",
+                    metric = my_metric,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_RSME)
+```
+
+```{r, eval=FALSE}
+mod_03_v_A_enet_poly %>% readr::write_rds("large_v_A_enet_poly_model.rds")
+```
+
+### Neural Network of V-variable for Regression
+
+Model of Neural Network for V-variable 
+
+```{r, eval=FALSE}
+nnet_grid_v_A <- expand.grid(size = c(2, 4, 6, 8, 10, 12),
+                         decay = exp(seq(-6, 2, length.out = 13)))
+
+set.seed(2021)
+                    
+mod_03_v_A_nnet_add <- train(response ~ ., 
+                    data = ready_v_A,
+                    method = "nnet",
+                    metric = my_metric,
+                    tuneGrid = nnet_grid_v_A,
+                    preProcess = c("center", "scale"),
+                    trControl = my_ctrl_RSME,
+                    trace = FALSE,
+                    linout = FALSE)
+```
+
+
+```{r, eval=FALSE}
+mod_03_v_A_nnet_add %>% readr::write_rds("large_v_A_nnet_add_model.rds")
+```
+
+### Random Forest of V-variable for Regression
+
+Model for Random Forest for V-variable
+
+```{r, eval=FALSE}
+set.seed(2021)
+mod_03_v_A_rf_add <- train(response ~ ., 
+                    data = ready_v_A,
+                    method = "rf",
+                    metric = my_metric,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_RSME)
+```
+
+```{r, eval=FALSE}
+mod_03_v_A_rf_add %>% readr::write_rds("large_v_A_rf_add_model.rds")
+```
+
+### Xgboost of V-variable for Regression
+
+Model for Xgboost for V-variable for regression
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+fit_xgb_v_A <- train(response ~ .,
+                 data = ready_v_A,
+                 method = "xgbTree",
+                 metric = my_metric,
+                 trControl = my_ctrl_RSME)
+```
+
+```{r, eval=FALSE}
+xgb_grid_v_A <- expand.grid(nrounds = seq(100, 700, by = 100),
+                        max_depth = c(3, 4, 5),
+                        eta = c(0.5*fit_xgb_v$bestTune$eta, fit_xgb_v$bestTune$eta),
+                        gamma = fit_xgb_v$bestTune$gamma,
+                        colsample_bytree = fit_xgb_v$bestTune$colsample_bytree,
+                        min_child_weight = fit_xgb_v$bestTune$min_child_weight,
+                        subsample = fit_xgb_v$bestTune$subsample)
+
+set.seed(2021)
+                      
+mod_03_v_A_xgb_add <- train(response ~ ., 
+                    data = ready_v_A,
+                    method = "xgbTree",
+                      tuneGrid = xgb_grid_v_A,
+                      metric = my_metric,
+                      trControl = my_ctrl_RSME)
+```
+
+```{r, eval=FALSE}
+fit_xgb_v_A %>% readr::write_rds("large_v_A_fit_xgb_add_model.rds")
+```
+
+
+```{r, eval=FALSE}
+mod_03_v_A_xgb_add %>% readr::write_rds("large_v_A_xgb_add_model.rds")
+```
+
+### Rpart of V-variable for Regression
+
+### Model of Rpart for V-variable for Regression
+
+```{r, eval=FALSE}
+set.seed(2021)
+mod_03_v_A_rpart_add <- train(response ~ ., 
+                    data = ready_v_A,
+                    method = "rpart",
+                    metric = my_metric,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_RSME)
+```
+
+```{r, eval=FALSE}
+mod_03_v_A_rpart_add %>% readr::write_rds("large_v_A_rpart_add_model.rds")
+```
+
+### SVM of V-variable for Regression
+
+### Model of SVM for V-variable for Regression
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_03_v_A_svm_add <- train(response ~ ., 
+                    data = ready_v_A,
+                    method = "svmRadial",
+                    metric = my_metric,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_RSME)
+```
+
+```{r, eval=FALSE}
+mod_03_v_A_svm_add %>% readr::write_rds("large_v_A_svm_add_model.rds")
+```
+
+### Classification
+
+### Linear Models
+
+Model for all additive features of X-variable of Large Dataset for Classification
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+my_ctrl_OC <- trainControl(method = "repeatedcv", number = 5, repeats = 2, summaryFunction = twoClassSummary, classProbs = FALSE)
+
+my_metric_ROC <- "ROC"
+
+mod_03_x_B_add <- train(outcome ~ .,
+                  data = ready_x_B,
+                  method = "glm",
+                  metric = my_metric_ROC,
+                  preProcess = c("center", "scale"),
+                  trControl = my_ctrl_ROC)
+
+```
+
+```{r, eval=FALSE}
+mod_03_x_B_add %>% readr::write_rds("large_x_B_add_model.rds")
+```
+
+Model for all Pairwise Interactions of Large Dataset for Classification
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_03_x_B_pair <- train(outcome ~ (.)^2,
+                  data = ready_x_B,
+                  method = 'glm',
+                  metric = my_metric_ROC,
+                  preProcess = c("center", "scale"),
+                  trControl = my_ctrl_ROC)
+```
+
+```{r, eval=FALSE}
+mod_03_x_B_pair %>% readr::write_rds("large_x_B_pair_model.rds")
+```
+
+
+### Elastic Net of X-vaRriable for Classification
+
+Model of elastic net for pairwise
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_03_x_B_enet_pair <- train(outcome ~ (.^2), 
+                    data = ready_x_B,
+                    method = "glmnet",
+                    metric = my_metric_ROC,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_ROC)
+```
+
+```{r, eval=FALSE}
+mod_03_x_B_enet_pair %>% readr::write_rds("large_x_B_enet_pair_model.rds")
+```
+
+Model of elastic net for complex interaction
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_03_x_B_enet_poly <- train(outcome ~ (x09+I(x09^2))*(x11+I(x11^2)), 
+                    data = ready_x_B,
+                    method = 'glmnet',
+                    metric = my_metric_ROC,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_ROC)
+```
+
+```{r, eval=FALSE}
+mod_03_x_B_enet_poly %>% readr::write_rds("large_v_B_enet_poly_model.rds")
+```
+
+### Neural Network of X-variable for Regression
+
+Model of Neural Network with tuning grid 
+
+```{r, eval=FALSE}
+nnet_grid_x_B <- expand.grid(size = c(2, 4, 6, 8, 10, 12),
+                         decay = exp(seq(-6, 2, length.out = 13)))
+
+set.seed(2021)
+                    
+mod_03_x_B_nnet_add <- train(outcome ~ ., 
+                    data = ready_x_B,
+                    method = "nnet",
+                    metric = my_metric_ROC,
+                    tuneGrid = nnet_grid_x_B,
+                    preProcess = c("center", "scale"),
+                    trControl = my_ctrl_ROC,
+                    trace = FALSE)
+```
+
+
+```{r, eval=FALSE}
+mod_03_x_B_nnet_add %>% readr::write_rds("large_x_B_nnet_add_model.rds")
+```
+
+### Random Forest of X-variable for Regression
+
+Model of Random Forest for X-variable in Regression
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_x_B_rf_add <- train(outcome ~ ., 
+                    data = ready_x_B,
+                    method = "rf",
+                    metric = my_metric_ROC,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_ROC)
+```
+
+```{r, eval=FALSE}
+mod_x_B_rf_add %>% readr::write_rds("large_x_B_rf_add_model.rds")
+```
+
+Model of XgBoost for X-variable in Regression
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+fit_xgb_B <- train(outcome ~ .,
+                 data = ready_x_B,
+                 method = "xgbTree",
+                 metric = my_metric_ROC,
+                 trControl = my_ctrl_ROC)
+```
+
+```{r, eval=FALSE}
+xgb_grid_B <- expand.grid(nrounds = seq(100, 700, by = 100),
+                        max_depth = c(3, 4, 5),
+                        eta = c(0.5*fit_xgb_B$bestTune$eta, fit_xgb_B$bestTune$eta),
+                        gamma = fit_xgb_B$bestTune$gamma,
+                        colsample_bytree = fit_xgb_B$bestTune$colsample_bytree,
+                        min_child_weight = fit_xgb_B$bestTune$min_child_weight,
+                        subsample = fit_xgb_B$bestTune$subsample)
+
+set.seed(2021)
+                      
+mod_03_x_B_xgb_add <- train(outcome ~ ., 
+                    data = ready_x_B,
+                    method = "xgbTree",
+                      tuneGrid = xgb_grid_B,
+                      metric = my_metric_ROC,
+                      trControl = my_ctrl_ROC)
+```
+
+
+```{r, eval=FALSE}
+fit_xgb_B %>% readr::write_rds("large_x_B_fit_xgb_add_model.rds")
+```
+
+```{r, eval=FALSE}
+mod_03_x_B_xgb_add %>% readr::write_rds("large_x_B_xgb_add_model.rds")
+```
+
+### CART of X-variable for Regression
+
+Model of CART for X-variable for Regression
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_03_x_B_rpart_add <- train(outcome ~ ., 
+                    data = ready_x_B,
+                    method = 'rpart',
+                    metric = my_metric_ROC,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_ROC)
+```
+
+```{r, eval=FALSE}
+mod_03_x_B_rpart_add %>% readr::write_rds("large_x_B_rpart_add_model.rds")
+```
+
+### SVM of X-variable for Regression
+
+Model of SVM for X-variable for Regression
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_03_x_B_svm_add <- train(outcome ~ ., 
+                    data = ready_x_B,
+                    method = 'svmRadial',
+                    metric = my_metric_ROC,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_ROC)
+```
+
+```{r, eval=FALSE}
+mod_03_x_B_svm_add %>% readr::write_rds("large_x_B_svm_add_model.rds")
+```
+
+### V-variable
+
+### Linear Models of V-variable for Regression
+
+Model for all additive features of V-variable of Large Dataset
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_03_v_B_add <- train(outcome ~ .,
+                  data = ready_v_B,
+                  method = "glm",
+                  metric = my_metric_ROC,
+                  preProcess = c("center", "scale"),
+                  trControl = my_ctrl_ROC)
+```
+
+```{r, eval=FALSE}
+mod_03_v_B_add %>% readr::write_rds("large_v_B_add_model.rds")
+```
+
+Model for all Pairwise Interactions of Large Dataset
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_03_v_B_pair <- train(outcome ~ (.)^2,
+                  data = ready_v_B,
+                  method = "glm",
+                  metric = my_metric_ROC,
+                  preProcess = c("center", "scale"),
+                  trControl = my_ctrl_ROC)
+```
+
+```{r, eval=FALSE}
+mod_03_v_B_pair %>% readr::write_rds("large_v_B_pair_model.rds")
+```
+
+Model for spline interactions for two inputs X09 and X11
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_03_v_B_spline_spline <- train(outcome ~ splines::ns(v09, 6)*splines::ns(v11, 6),
+                  data = ready_v_B,
+                  method = "glm",
+                  metric = my_metric_ROC,
+                  preProcess = c("center", "scale"),
+                  trControl = my_ctrl_ROC)
+```
+
+```{r, eval=FALSE}
+mod_03_v_B_spline_spline %>% readr::write_rds("large_v_B_spline_spline_model.rds")
+```
+
+### Elastic net of V-variable for Regression
+
+Model of elastic net for pairwise
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_03_v_B_enet_pair <- train(outcome ~ (.^2), 
+                    data = ready_v_B,
+                    method = "glmnet",
+                    metric = my_metric_ROC,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_ROC)
+```
+
+```{r, eval=FALSE}
+mod_03_v_B_enet_pair %>% readr::write_rds("large_v_B_enet_pair_model.rds")
+```
+
+Model of elastic net for polynomial interaction for V-variable
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_03_v_B_enet_poly <- train(outcome ~ (v06+I(v06^2))*(v08+I(v08^2)), 
+                    data = ready_v_B,
+                    method = "glmnet",
+                    metric = my_metric_ROC,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_ROC)
+```
+
+```{r, eval=FALSE}
+mod_03_v_B_enet_poly %>% readr::write_rds("large_v_B_enet_poly_model.rds")
+```
+
+### Neural Network of V-variable for Regression
+
+Model of Neural Network for V-variable 
+
+```{r, eval=FALSE}
+nnet_grid_v_B <- expand.grid(size = c(2, 4, 6, 8, 10, 12),
+                         decay = exp(seq(-6, 2, length.out = 13)))
+
+set.seed(2021)
+                    
+mod_03_v_B_nnet_add <- train(outcome ~ ., 
+                    data = ready_v_B,
+                    method = "nnet",
+                    metric = my_metric_ROC,
+                    tuneGrid = nnet_grid_v_B,
+                    preProcess = c("center", "scale"),
+                    trControl = my_ctrl_ROC,
+                    trace = FALSE)
+```
+
+
+```{r, eval=FALSE}
+mod_03_v_B_nnet_add %>% readr::write_rds("large_v_B_nnet_add_model.rds")
+```
+
+### Random Forest of V-variable for Regression
+
+Model for Random Forest for V-variable
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_03_v_B_rf_add <- train(outcome ~ ., 
+                    data = ready_v_B,
+                    method = "rf",
+                    metric = my_metric_ROC,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_ROC)
+```
+
+```{r, eval=FALSE}
+mod_03_v_B_rf_add %>% readr::write_rds("large_v_B_rf_add_model.rds")
+```
+
+### Xgboost of V-variable for Regression
+
+Model for Xgboost for V-variable for regression
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+fit_xgb_v_B <- train(outcome ~ .,
+                 data = ready_v_B,
+                 method = "xgbTree",
+                 metric = my_metric_ROC,
+                 trControl = my_ctrl_ROC)
+```
+
+```{r, eval=FALSE}
+xgb_grid_v_B <- expand.grid(nrounds = seq(100, 700, by = 100),
+                        max_depth = c(3, 4, 5),
+                        eta = c(0.5*fit_xgb_v_B$bestTune$eta, fit_xgb_v_B$bestTune$eta),
+                        gamma = fit_xgb_v_B$bestTune$gamma,
+                        colsample_bytree = fit_xgb_v_B$bestTune$colsample_bytree,
+                        min_child_weight = fit_xgb_v_B$bestTune$min_child_weight,
+                        subsample = fit_xgb_v_B$bestTune$subsample)
+
+set.seed(2021)
+                      
+mod_03_v_B_xgb_add <- train(outcome ~ ., 
+                    data = ready_v_B,
+                    method = "xgbTree",
+                      tuneGrid = xgb_grid,
+                      metric = my_metric_ROC,
+                      trControl = my_ctrl_ROC)
+```
+
+
+```{r, eval=FALSE}
+xgb_grid_v_B %>% readr::write_rds("large_v_B_fit_xgb_add_model.rds")
+```
+
+
+```{r, eval=FALSE}
+mod_03_v_B_xgb_add %>% readr::write_rds("large_v_B_xgb_add_model.rds")
+```
+
+### Rpart of V-variable for Regression
+
+### Model of Rpart for V-variable for Regression
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_03_v_B_rpart_add <- train(outcome ~ ., 
+                    data = ready_v_B,
+                    method = "rpart",
+                    metric = my_metric_ROC,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_ROC)
+```
+
+```{r, eval=FALSE}
+mod_03_v_B_rpart_add %>% readr::write_rds("large_v_B_rpart_add_model.rds")
+```
+
+### SVM of V-variable for Regression
+
+### Model of SVM for V-variable for Regression
+
+```{r, eval=FALSE}
+set.seed(2021)
+
+mod_03_v_B_svm_add <- train(outcome ~ ., 
+                    data = ready_v_B,
+                    method = "svmRadial",
+                    metric = my_metric_ROC,
+                    preProcess = c('center', 'scale'),
+                    trControl = my_ctrl_ROC)
+```
+
+```{r, eval=FALSE}
+mod_03_v_B_svm_add %>% readr::write_rds("large_v_B_svm_add_model.rds")
+```
+
+

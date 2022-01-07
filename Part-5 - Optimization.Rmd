@@ -1,0 +1,339 @@
+---
+title: "Part 5 Optimization"
+author: "Haneef Ahamed Mohammad"
+date: "14/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r, load_packages}
+library(tidyverse)
+library(rstanarm)
+library(caret)
+library(ranger)
+library(xgboost)
+```
+
+
+```{r, read_data_train_x}
+
+train_x <- readr::read_csv("train_input_set_x.csv", col_names = TRUE)
+train_outputs  <- readr::read_csv('train_outputs.csv', col_names = TRUE)
+ready_x_A <- train_x %>% 
+  left_join(train_outputs, by = 'run_id') %>% 
+  select(-run_id, -outcome)
+train_v <- readr::read_csv("train_input_set_v.csv", col_names = TRUE)
+ready_v_A <- train_x %>% 
+  left_join(train_outputs, by = 'run_id') %>% 
+  select(-run_id, -outcome)
+
+ready_x_B <- train_x %>% 
+  left_join(train_outputs, by = 'run_id') %>% 
+  select(-run_id, -response) %>% 
+  mutate(outcome = factor(outcome, levels = c("event", "non_event")))
+
+ready_v_B <- train_x %>% 
+  left_join(train_outputs, by = 'run_id') %>% 
+  select(-run_id, -response) %>% 
+  mutate(outcome = factor(outcome, levels = c("event", "non_event")))
+
+```
+
+### Loading the Models
+
+```{r}
+re_load_mod_03_x_A_nnet_add <- readr::read_rds("large_x_A_nnet_add_model.rds")
+re_load_fit_xgb <- readr::read_rds("large_x_A_fit_xgb_add_model.rds")
+re_load_mod_03_v_A_nnet_add <- readr::read_rds("large_v_A_nnet_add_model.rds")
+re_load_mod_03_v_A_xgb_add <- readr::read_rds("large_v_A_xgb_add_model.rds")
+re_load_mod_03_x_B_xgb_add <- readr::read_rds("large_x_B_xgb_add_model.rds")
+re_load_mod_03_v_B_xgb_add <- readr::read_rds("large_v_B_xgb_add_model.rds")
+re_load_mod_03_x_A_xgb_add <- readr::read_rds("large_x_A_xgb_add_model.rds")
+re_load_mod_v_B_rf_add <- readr::read_rds("large_v_B_rf_add_model.rds")
+re_load_mod_x_B_rf_add <- readr::read_rds("large_x_B_rf_add_model.rds")
+```
+
+### Model performance improve if the “v-variables” are used instead of the “x-variables”
+
+## For Regression, we can compare their Performance. For both of these variables, Neural Network is the best performing models. For more Detailed evaluation of variable impact we will be including XGboost as well
+
+
+```{r}
+set.seed(2021)
+
+my_results <- resamples(list(X_Nnet = re_load_mod_03_x_A_nnet_add,
+                             V_Nnet = re_load_mod_03_v_A_nnet_add,
+                             X_XGB = re_load_mod_03_x_A_xgb_add,
+                             V_XGB = re_load_mod_03_v_A_xgb_add))
+
+dotplot(my_results, metric = "RMSE")
+```
+
+From, the above graph we can say the Model performance will be improved, if the “v-variables” are used instead of the “x-variables”
+
+```{r}
+set.seed(2021)
+
+my_results_class <- resamples(list(X_RF = re_load_mod_x_B_rf_add,
+                             V_RF = re_load_mod_v_B_rf_add,
+                             X_XGB = re_load_mod_03_x_B_xgb_add,
+                             V_XGB = re_load_mod_03_v_B_xgb_add))
+
+dotplot(my_results_class, metric = "ROC")
+```
+
+From, the above graph we can say the Model performance will be improved, if the “v-variables” are used instead of the “x-variables”
+
+```{r}
+library(vip)
+library(parsnip)
+library(tidymodels)
+```
+
+Variable importance for the X-variable for the Neural Network Model with Tuning
+
+```{r}
+ plot(varImp(re_load_mod_03_x_A_nnet_add))
+```
+Variable importance for the V-variable for the Neural Network Model with Tuning
+
+```{r}
+ plot(varImp(re_load_mod_03_v_A_nnet_add))
+```
+
+Variable importance for the X-variable for the XgBoost Model with Tuning
+
+```{r}
+ plot(varImp(re_load_mod_03_x_B_xgb_add))
+```
+
+Variable importance for the X-variable for the XgBoost Model with Tuning
+
+```{r}
+ plot(varImp(re_load_mod_03_v_B_xgb_add))
+```
+
+After doing a couple of variable importance plots for our best models, we can say that for Classification models x09 and x11 for X-variables and v10 and v04 for V-variable have high importance. and for Regression its x09, x11 for X - variable and v10 , v12 for Variable
+
+# Trends of the continuous response with respect to the most important inputs (X- variable)
+
+```{r}
+
+viz_grid_xgb_x_R <- expand.grid(x11 = seq(0, 1, length.out = 101),
+                        x09 = seq(0, 1, length.out = 5),
+                        merge_id = 1,
+                        KEEP.OUT.ATTRS = FALSE,
+                        stringsAsFactors = FALSE) %>%
+  left_join(train_x %>%  apply(2, median) %>% as.data.frame() %>% tibble::rownames_to_column("variable") %>%  pivot_wider(names_from = "variable", values_from = ".") %>%  select(!c(x09, x11)) %>% mutate(merge_id = 1)) %>%  select(!merge_id)
+```
+
+```{r}
+re_load_mod_03_x_A_xgb_add %>% predict(newdata = viz_grid_xgb_x_R) %>%
+  as.data.frame() %>% tibble::rowid_to_column("pred_id") %>%
+  left_join(viz_grid_xgb_x_R %>% tibble::rowid_to_column("pred_id"), by = "pred_id") %>%
+  ggplot(mapping = aes(x = x11)) +
+  # geom_point(alpha = 0.3, size = 1.85,
+  #            mapping = aes(color = x11)) +
+  geom_line(mapping = aes(y = .), color = 'red',
+            size = 1.) +
+  facet_grid(~x09, labeller = "label_both") +  labs(y = "Prediction")
+  theme_bw()
+```
+
+When x11 is equal to 1 it minimizes the  probability
+
+# Trends of the continuous response with respect to the most important inputs (V- variable)
+
+```{r}
+
+viz_grid_xgb_v_R <- expand.grid(v10 = seq(0, 1, length.out = 101),
+                        v12 = seq(0, 1, length.out = 5),
+                        merge_id = 1,
+                        KEEP.OUT.ATTRS = FALSE,
+                        stringsAsFactors = FALSE) %>%
+  left_join(train_v %>%  apply(2, median) %>% as.data.frame() %>% tibble::rownames_to_column("variable") %>%  pivot_wider(names_from = "variable", values_from = ".") %>%  select(!c(v12, v10)) %>% mutate(merge_id = 1)) %>%  select(!merge_id)
+```
+
+```{r}
+re_load_mod_03_v_A_xgb_add %>% predict(newdata = viz_grid_xgb_v_R) %>%
+  as.data.frame() %>% tibble::rowid_to_column("pred_id") %>%
+  left_join(viz_grid_xgb_v_R %>% tibble::rowid_to_column("pred_id"), by = "pred_id") %>%
+  ggplot(mapping = aes(x = v10)) +
+  # geom_point(alpha = 0.3, size = 1.85,
+  #            mapping = aes(color = x11)) +
+  geom_line(mapping = aes(y = .), color = 'red',
+            size = 1.) +
+  facet_grid(~v12, labeller = "label_both") + labs(y = "Prediction")
+  theme_bw()
+```
+
+
+When v10 is equal to 1, it minimizes the  probability
+
+# Trends of the event probability with respect to the most important inputs (X – variable)
+
+```{r}
+set.seed(2222)
+
+make_test_input_list_xc <- function(var_name, top_4_inputs, all_data)
+{
+  xvar <- all_data %>% select(var_name) %>% pull()
+  
+  if (var_name %in% top_4_inputs[1:2]){
+    
+    xgrid <- seq(min(xvar), max(xvar), length.out = 25)
+  } else if (var_name %in% top_4_inputs[3:4]){
+    
+    xgrid <- quantile(xvar, probs = c(0.05, 0.25, 0.5, 0.75, 0.95), na.rm = TRUE)
+    xgrid <- as.vector(xgrid)
+  } else {
+    
+    xgrid <- c(0)
+  }
+  
+  return(xgrid)
+}
+
+make_test_input_grid_xc <- function(all_input_names, top_4_inputs, all_data)
+{
+  test_list <- purrr::map(all_input_names, 
+                          make_test_input_list_xc,
+                          top_4_inputs = top_4_inputs,
+                          all_data = all_data)
+  
+  expand.grid(test_list, 
+              KEEP.OUT.ATTRS = FALSE,
+              stringsAsFactors = FALSE) %>% 
+    purrr::set_names(all_input_names)
+}
+
+
+
+inputs_xc <-  colnames(ready_x_B  %>% dplyr::select(-outcome))
+
+top_inputs_xc <- c("x09", "x11", "x10", "x05")
+
+viz_input_grid_xc <- make_test_input_grid_xc(inputs_xc, top_inputs_xc, ready_x_B )
+```
+
+```{r}
+pred_prob_txgb_xc <- predict(re_load_mod_03_x_B_xgb_add, viz_input_grid_xc, type = 'prob')
+
+
+bind_cols(viz_input_grid_xc, pred_prob_txgb_xc) %>% ggplot(mapping = aes(x=x09, y=x11))+geom_raster(mapping = aes(fill = event))+ facet_grid(cols = vars("x10"), rows = vars(x05))+scale_fill_gradient2(limits = c(0,1), low = 'yellow', high='red', mid='white', midpoint = 0.5)
+```
+
+x11 = 0.04  input values do you recommend to minimize the event probability for Classification  
+
+
+# Trends of the event probability with respect to the most important inputs (V – variable)
+
+```{r}
+make_test_input_list_vc <- function(var_name, top_4_inputs, all_data)
+{
+  xvar <- all_data %>% select(var_name) %>% pull()
+  
+  if (var_name %in% top_4_inputs[1:2]){
+    
+    xgrid <- seq(min(xvar), max(xvar), length.out = 25)
+  } else if (var_name %in% top_4_inputs[3:4]){
+    
+    xgrid <- quantile(xvar, probs = c(0.01, 0.25, 0.5, 0.75, 0.99), na.rm = TRUE)
+    xgrid <- as.vector(xgrid)
+  } else {
+    
+    xgrid <- median(xvar, na.rm = TRUE)
+  }
+  
+  return(xgrid)
+}
+
+make_test_input_grid_vc <- function(all_input_names, top_4_inputs, all_data)
+{
+  test_list <- purrr::map(all_input_names, 
+                          make_test_input_list_vc,
+                          top_4_inputs = top_4_inputs,
+                          all_data = all_data)
+  
+  expand.grid(test_list, 
+              KEEP.OUT.ATTRS = FALSE,
+              stringsAsFactors = FALSE) %>% 
+    purrr::set_names(all_input_names)
+}
+
+inputs_vc <-  colnames(ready_v_B  %>% dplyr::select(-outcome))
+
+top_inputs_vc_2 <- c("v10", "v04", "v02", "v06")
+
+viz_input_grid_vc_2 <- make_test_input_grid_vc(inputs_vc, top_inputs_vc_2, ready_v_B )
+
+```
+
+```{r, eval=FALSE}
+pred_prob_rf_vc <- predict(re_load_mod_03_v_B_xgb_add, viz_input_grid_vc_2, type = 'prob')
+
+bind_cols(viz_input_grid_vc_2, pred_prob_rf_vc) %>% 
+  ggplot(mapping = aes(x = v04, y = v10)) + 
+  geom_raster(mapping = aes(fill = event)) + 
+  facet_grid(cols = vars("v02"), rows = vars(v06)) + 
+  scale_fill_gradient2(limits = c(0,1), low = 'yellow', high='red', mid='white', midpoint = 0.5)
+```
+
+x11 = 0.04 and v = 0.01 input values do you recommend to minimize the event probability for Classification 
+
+# Testing our Models against the holdout test dataset.
+
+## CSV file for X
+
+```{r}
+set.seed(2222)
+
+test_x <- readr::read_csv("holdout_inputs_x.csv", col_names = TRUE)
+
+prediction_x <- tibble::tibble(
+  response = predict(re_load_mod_03_x_A_nnet_add, newdata = test_x),
+  outcome = predict(re_load_mod_03_x_B_xgb_add, newdata = test_x)) %>% 
+  bind_cols(
+    predict(re_load_mod_03_x_B_xgb_add, newdata = test_x, type='prob') %>% 
+      select(probability = event)) %>% 
+  tibble::rowid_to_column("id")
+
+prediction_x %>% glimpse()
+```
+```{r}
+prediction_x %>% readr::write_csv("prediction_x.csv", col_names = TRUE)
+```
+
+## CSV file for V
+
+```{r}
+set.seed(2222)
+
+test_v <- readr::read_csv("holdout_inputs_v.csv", col_names = TRUE)
+
+prediction_v <- tibble::tibble(
+  response = predict(re_load_mod_03_v_A_nnet_add, newdata = test_v),
+  outcome = predict(re_load_mod_03_v_B_xgb_add, newdata = test_v)) %>% 
+  bind_cols(
+    predict(re_load_mod_03_v_B_xgb_add, newdata = test_v, type='prob') %>% 
+      select(probability = event)) %>% 
+  tibble::rowid_to_column("id")
+
+prediction_v %>% glimpse()
+```
+
+```{r}
+prediction_v %>% readr::write_csv("prediction_v.csv", col_names = TRUE)
+```
+

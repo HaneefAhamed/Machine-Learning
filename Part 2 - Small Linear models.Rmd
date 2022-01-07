@@ -1,0 +1,304 @@
+---
+title: "Part 2 - Small Linear models"
+author: "Haneef Ahamed Mohammad"
+date: "05/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+# Loading the lIbraries
+
+```{r, load_packages}
+library(tidyverse)
+library(rstanarm)
+library(caret)
+library(ranger)
+library(xgboost)
+```
+
+
+# Reading the Linear Models
+
+### Loading Additive Interactions and with summary
+
+```{r, eval = TRUE}
+re_load_mod_02_add <- readr::read_rds("small_additive_model.rds")
+```
+
+```{r, eval = TRUE}
+re_load_mod_02_add %>%  summary()
+```
+
+### Loading Pairwise and with summary
+
+```{r, eval = TRUE}
+re_load_mod_02_pair <- readr::read_rds("small_pairwise_model.rds")
+```
+
+```{r, eval = TRUE}
+re_load_mod_02_pair %>%  summary()
+```
+
+### Loading Quadratic polynomial and with summary
+
+```{r, eval=TRUE}
+re_load_mod_02_quad_Linear <- readr::read_rds("small_quad_Linear_model.rds")
+```
+
+```{r, eval=TRUE}
+re_load_mod_02_quad_Linear %>% summary()
+```
+
+### Loading Linear and polynomial interactions between two inputs X07 and X21 and with summary
+
+```{r, eval=TRUE}
+re_load_mod_02_poly_Linear <- readr::read_rds("small_poly_Linear_model.rds")
+```
+
+```{r, eval=TRUE}
+re_load_mod_02_poly_Linear %>% summary()
+```
+
+### Loading spline and polynomial interaction between two iputs and with summary
+
+```{r, eval=TRUE}
+re_load_mod_02_spline_Linear <- readr::read_rds("small_spline_Linear_model.rds")
+```
+
+```{r, eval=TRUE}
+re_load_mod_02_spline_Linear %>% summary()
+```
+
+### Loading spline interaction between two inputs and with summary
+
+```{r, eval=TRUE}
+re_load_mod_02_spline_spline <- readr::read_rds("small_spline_spline_model.rds")
+```
+
+```{r, eval=TRUE}
+re_load_mod_02_spline_spline %>% summary()
+```
+
+### Loading Bayesian Model for all pairwise interactions and with summary
+
+```{r, eval=TRUE}
+re_load_mod_02_baye_pair <- readr::read_rds("small_baye_pairwise_model.rds")
+```
+
+```{r, eval=TRUE}
+re_load_mod_02_baye_pair %>% summary()
+```
+
+### Loading Bayesian Model for spline interaction between two inputs and with summary
+
+```{r}
+re_load_mod_02_baye_spline <- readr::read_rds("small_baye_spline_model.rds")
+```
+
+```{r}
+re_load_mod_02_baye_spline %>% summary()
+```
+
+# Finding the Best Model
+
+By using the broom function we can view Rsquared, AIC and BIC performance metrics 
+
+```{r, eval=TRUE}
+all_metrics_small <- broom::glance(re_load_mod_02_add) %>% bind_rows(broom::glance(re_load_mod_02_pair), broom::glance(re_load_mod_02_quad_Linear), broom::glance(re_load_mod_02_poly_Linear), broom::glance(re_load_mod_02_spline_Linear), broom::glance(re_load_mod_02_spline_spline))
+
+Metrics_small <- all_metrics_small %>%  select(r.squared, AIC, BIC) %>% mutate(mod_name = c( "Additive", "Pairwise","Polynomial", "Linear and Polynomial", "Spline and Polynomial", "Spline with Spline"))
+
+Metrics_small
+```
+
+According to Rsquared Performance metric, Model 2 and Model 6 is the best model with the highest values when compared to other models. In this Model 2 is pairwise and Model 6 is a spline Interaction. 
+
+## Performance metric as distribution
+
+```{r}
+Metrics_small %>% 
+  select(mod_name, r.squared) %>% 
+  pivot_longer(!c("mod_name")) %>% 
+  ggplot(mapping = aes(x = mod_name, y = value)) +
+  geom_point(size = 5) +
+  facet_wrap(~name, scales = "free_y") +
+  theme_bw()
+```
+
+
+Now, lets visualize the two best models according to the performance metric. 
+
+# Visualizing the coefficient summaries for the best two models
+
+```{r}
+re_load_mod_02_pair %>% coefplot::coefplot()
+```
+
+```{r}
+re_load_mod_02_spline_spline %>% coefplot::coefplot()
+```
+
+# Bayesian Approach
+
+### Best Model of the two Bayesian Models
+
+We are evaluating based on posterior intervials and quantiles. 
+
+```{r}
+posterior_interval(re_load_mod_02_baye_pair)
+```
+
+```{r}
+rstanarm::bayes_R2(re_load_mod_02_baye_pair) %>% quantile(c(0.05, 0.5, 0.95))
+```
+
+
+```{r}
+posterior_interval(re_load_mod_02_baye_spline)
+```
+
+```{r}
+rstanarm::bayes_R2(re_load_mod_02_baye_spline) %>% quantile(c(0.05, 0.5, 0.95))
+```
+# Posterior Sistributions 
+
+## Visualize the posterior distributions on the coefficients for the best model.
+
+```{r}
+plot(re_load_mod_02_baye_pair)
+```
+
+
+```{r}
+plot(re_load_mod_02_baye_pair)
+```
+
+### Reshaping posterior samples to fit in histogram
+
+```{r}
+as.data.frame(re_load_mod_02_baye_spline) %>% tibble::as_tibble() %>% 
+  select(names(re_load_mod_02_baye_spline$coefficients)) %>% 
+  tibble::rowid_to_column("post_id") %>% 
+  tidyr::gather(key = "key", value = "value", -post_id) %>% 
+  ggplot(mapping = aes(x = value)) +
+  geom_histogram(bins = 55) +
+  facet_wrap(~key, scales = "free") +
+  theme_bw() +
+  theme(axis.text.y = element_blank())
+```
+
+
+# Posterior samples on sigma
+
+```{r}
+as.data.frame(re_load_mod_02_baye_spline) %>% tibble::as_tibble() %>% 
+  ggplot(mapping = aes(x = sigma)) +
+  geom_histogram(bins = 55) +
+  geom_vline(xintercept = stats::sigma(re_load_mod_02_spline_spline),
+             color = "darkorange", linetype = "dashed", size = 1.1) +
+  theme_bw()
+```
+
+```{r}
+viz_grid <- expand.grid(x09 = seq(from = 0, to = 1, length.out = 6),
+                        x10 = 0,
+                        x07 = 0,
+                        x11 = seq(from = 0, to = 1, length.out = 101), 
+                        x21 = 0,
+                        KEEP.OUT.ATTRS = FALSE,
+                        stringsAsFactors = FALSE) %>% 
+  as.data.frame() %>% tibble::as_tibble()
+
+viz_grid %>% glimpse()
+```
+
+```{r}
+posterior_linpred(re_load_mod_02_baye_spline, newdata = viz_grid) %>% dim()
+```
+
+# Posterior Prediction
+
+Bayesian Pairwise Model
+
+```{r}
+posterior_linpred(re_load_mod_02_baye_pair, newdata = viz_grid) %>% 
+  as.data.frame() %>% tibble::as_tibble() %>% 
+  tibble::rowid_to_column("post_id") %>% 
+  tidyr::gather(key = "pred_id", value = "value", -post_id) %>% 
+  mutate_at(c("pred_id"), as.numeric) %>% 
+  group_by(pred_id) %>% 
+  summarise(num_post = n(),
+            trend_avg = mean(value),
+            trend_lwr = quantile(value, 0.05),
+            trend_upr = quantile(value, 0.95)) %>% 
+  ungroup() %>% 
+  left_join(viz_grid %>% tibble::rowid_to_column("pred_id"),
+            by = "pred_id") %>% 
+  ggplot(aes(x = x11)) +
+  geom_ribbon(mapping = aes(ymin = trend_lwr,
+                            ymax = trend_upr,
+                            group = x09,
+                            fill = as.factor(x09)),
+              alpha = 0.5) +
+  geom_line(mapping = aes(y = trend_avg,
+                          group = x09,
+                          color = as.factor(x09)),
+            size = 1.) +
+  facet_wrap(~x09, labeller = "label_both") +
+  scale_fill_viridis_d("x09") +
+  scale_color_viridis_d("x09") +
+  labs(y = "mean trend") +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+## Bayesian Model Spline 
+
+```{r}
+posterior_linpred(re_load_mod_02_baye_spline, newdata = viz_grid) %>% 
+  as.data.frame() %>% tibble::as_tibble() %>% 
+  tibble::rowid_to_column("post_id") %>% 
+  tidyr::gather(key = "pred_id", value = "value", -post_id) %>% 
+  mutate_at(c("pred_id"), as.numeric) %>% 
+  group_by(pred_id) %>% 
+  summarise(num_post = n(),
+            trend_avg = mean(value),
+            trend_lwr = quantile(value, 0.05),
+            trend_upr = quantile(value, 0.95)) %>% 
+  ungroup() %>% 
+  left_join(viz_grid %>% tibble::rowid_to_column("pred_id"),
+            by = "pred_id") %>% 
+  ggplot(mapping = aes(x = x11)) +
+  geom_ribbon(mapping = aes(ymin = trend_lwr,
+                            ymax = trend_upr,
+                            group = x09,
+                            fill = as.factor(x09)),
+              alpha = 0.5) +
+  geom_line(mapping = aes(y = trend_avg,
+                          group = x09,
+                          color = as.factor(x09)),
+            size = 1.) +
+  facet_wrap(~x09, labeller = "label_both") +
+  scale_fill_viridis_d("x09") +
+  scale_color_viridis_d("x09") +
+  labs(y = "mean trend") +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+#Conclusion:
+
+We worked on the small datset
+
+

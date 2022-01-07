@@ -1,0 +1,424 @@
+---
+title: "Part 1 - Exploration"
+author: "Haneef Ahamed Mohammad"
+date: "03/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## Overview
+
+**IMPORTANT**: code chunks are created for you. Each code chunk has `eval=FALSE` set in the chunk options. You **MUST** change it to be `eval=TRUE` in order for the code chunks to be evaluated when rendering the document.  
+
+# Load packages
+
+This assignment will use packages from the `tidyverse` suite.  
+
+```{r, load_packages}
+library(tidyverse)
+```
+
+## Reading the Data
+
+## Reading the small Data Set
+
+```{r, read_data_small}
+
+df_start <- readr::read_csv('small_train_data.csv', col_names = TRUE)
+
+df_start %>% glimpse()
+```
+
+## Reading the large dataset for X-variable
+
+```{r, read_data_train_x}
+
+train_x <- readr::read_csv("train_input_set_x.csv", col_names = TRUE)
+
+train_x %>% glimpse()
+```
+
+## Reading the large dataset for V-variable
+
+```{r, read_data_train_v}
+
+train_v <- readr::read_csv("train_input_set_v.csv", col_names = TRUE)
+
+train_v %>% glimpse()
+```
+
+## Reading the large dataset of outputs
+
+```{r, read_data_train_outputs}
+
+train_outputs  <- readr::read_csv('train_outputs.csv', col_names = TRUE)
+
+train_outputs  %>% glimpse()
+```
+
+# Preapring data for Regression
+
+```{r}
+ready_x_A <- train_x %>% 
+  left_join(train_outputs, by = 'run_id') %>% 
+  select(-run_id, -outcome)
+
+ready_x_A %>% glimpse()
+```
+
+```{r}
+ready_v_A <- train_v %>% 
+  left_join(train_outputs, by = 'run_id') %>% 
+  select(-run_id, -outcome)
+
+ready_v_A %>% glimpse()
+```
+
+# Preparing data for Classification
+
+```{r}
+ready_x_B <- train_x %>% 
+  left_join(train_outputs, by = 'run_id') %>% 
+  select(-run_id, -response) %>% 
+  mutate(outcome = factor(outcome, levels = c("event", "non_event")))
+
+ready_x_B %>% glimpse()
+```
+
+```{r}
+ready_v_B <- train_v %>% 
+  left_join(train_outputs, by = 'run_id') %>% 
+  select(-run_id, -response) %>% 
+  mutate(outcome = factor(outcome, levels = c("event", "non_event")))
+
+ready_v_B %>% glimpse()
+```
+
+# Exploartion for small dataset
+
+Visually check for missing values using the visdat package for the small dataset
+
+```{r}
+visdat::vis_miss(df_start)
+```
+
+Visualizing missing values for the large dataset
+```{r}
+visdat::vis_miss(train_x)
+visdat::vis_miss(train_v)
+visdat::vis_miss(train_outputs)
+```
+
+Visualizing datatypes for the small dataset
+
+```{r}
+visdat::vis_dat(df_start)
+```
+
+Check the number of unique variable for the small dataset
+
+```{r}
+df_start %>% purrr::map_dbl(n_distinct)
+```
+
+## Distributions of the inputs – the “x-variables” for Small data set
+
+```{r}
+df_start %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(cols = !c('rowid',"response")) %>% 
+  ggplot(mapping = aes(x=value))+
+  geom_histogram()+
+  facet_wrap(~name,scales = "free_x")
+```
+
+
+## relationships between the continuous output and the “x-variable” for small dataset
+
+```{r}
+df_start %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(cols = !c('rowid',"response")) %>% 
+  ggplot(mapping = aes(x=value, y=response))+
+  geom_point()+
+  geom_smooth()+
+  facet_wrap(~name,scales = "free_x")
+```
+
+## Co-relation between inputs for small dataset
+
+```{r}
+df_start %>% cor() %>% corrplot::corrplot(type = "upper")
+```
+
+# Exploration for large Dataset
+
+### Visualizing datatype for the large dataset
+
+```{r}
+visdat::vis_dat(train_x)
+visdat::vis_dat(train_v)
+visdat::vis_dat(train_outputs)
+```
+
+Check the number of unique variable for the large dataset
+
+```{r}
+train_x %>% purrr::map_dbl(n_distinct)
+train_v %>% purrr::map_dbl(n_distinct)
+train_outputs %>% purrr::map_dbl(n_distinct)
+```
+
+## Distributions of the inputs – “v-variables”
+
+```{r}
+train_x %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(cols = !c('run_id')) %>% 
+  ggplot(mapping = aes(x=value))+
+  geom_histogram(bins = 10)+
+  facet_wrap(~name,scales = "free_x")
+```
+
+## Distributions of the inputs – the “x-variables” and “v-variables”
+
+```{r}
+train_v %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(cols = !c('run_id')) %>% 
+  ggplot(mapping = aes(x=value))+
+  geom_histogram(bins = 10)+
+  facet_wrap(~name,scales = "free_x")
+```
+
+## Relationships between the continuous output and the “x-variable” 
+
+```{r}
+ready_x_A %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(cols = !c("response")) %>% 
+  ggplot(mapping = aes(x=value, y=response))+
+  geom_point()+
+  geom_smooth()+
+  facet_wrap(~name,scales = "free_x")
+```
+
+## Relationships between the continuous output and the “V-variable” 
+
+```{r}
+ready_v_A %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(cols = !c("response")) %>% 
+  ggplot(mapping = aes(x=value, y=response))+
+  geom_point()+
+  geom_smooth()+
+  facet_wrap(~name,scales = "free_x")
+```
+
+# Input vs binary outcome for x-variable
+
+```{r}
+train_x %>% 
+  left_join(train_outputs, by = 'run_id') %>% 
+  pivot_longer(!c('run_id', 'response', 'outcome')) %>% 
+  ggplot(aes(x=value, color = outcome)) + 
+  geom_freqpoly(aes(y=stat(density))) + 
+  facet_wrap(~name)
+```
+
+# Input vs binary outcome for v-variable
+
+```{r}
+train_v %>% 
+  left_join(train_outputs, by = 'run_id') %>% 
+  pivot_longer(!c('run_id', 'response', 'outcome')) %>% 
+  ggplot(aes(x=value, color = outcome)) + 
+  geom_freqpoly(aes(y=stat(density))) + 
+  facet_wrap(~name)
+```
+
+
+
+# Distribution of Outputs dataset 
+
+```{r}
+train_outputs %>%  
+  ggplot(mapping = aes(x = response)) + 
+  geom_histogram(bins = 30) +
+  theme_minimal()
+```
+
+Check the count
+
+```{r}
+train_outputs %>% count(outcome)
+```
+
+```{r}
+train_outputs %>% 
+  ggplot(aes(x=response, color = outcome)) + 
+  geom_freqpoly(aes(y=stat(density)))
+```
+
+
+# Compare the continuous output relationships to the 5 inputs in the “Getting started” simplified design with the relationships in the 
+complete larger design
+
+### x07
+
+```{r}
+ggplot(NULL, aes(x)) + 
+  geom_histogram(data = train_x, mapping = aes(x07), bins = 30, colour = "black") +
+  geom_histogram(data = df_start, mapping = aes(x07), bins = 30, colour = "yellow") +
+  theme_minimal()
+```
+
+### x09
+
+```{r}
+ggplot(NULL, aes(x)) + 
+  geom_histogram(data = train_x, mapping = aes(x09), bins = 30, colour = "black") +
+  geom_histogram(data = df_start, mapping = aes(x09), bins = 30, colour = "yellow") +
+  theme_minimal()
+```
+
+### x10
+
+```{r}
+ggplot(NULL, aes(x)) + 
+  geom_histogram(data = train_x, mapping = aes(x10), bins = 30, colour = "black") +
+  geom_histogram(data = df_start, mapping = aes(x10), bins = 30, colour = "yellow") +
+  theme_minimal()
+```
+
+### x11
+
+```{r}
+ggplot(NULL, aes(x)) + 
+  geom_histogram(data = train_x, mapping = aes(x11), bins = 30, colour = "black") +
+  geom_histogram(data = df_start, mapping = aes(x11), bins = 30, colour = "yellow") +
+  theme_minimal()
+```
+
+### x21
+
+```{r}
+ggplot(NULL, aes(x)) + 
+  geom_histogram(data = train_x, mapping = aes(x21), bins = 30, colour = "black") +
+  geom_histogram(data = df_start, mapping = aes(x21), bins = 30, colour = "yellow") +
+  theme_minimal()
+```
+
+## Response vs Select Inputs 
+
+x07 vs response
+
+```{r}
+ggplot(NULL, aes(x, y)) +
+  geom_point(data = ready_x_A, mapping = aes(x = x07, y = response), colour = "grey") +
+  geom_line(data = ready_x_A, mapping = aes(x = x07, y = response), colour = "grey") +
+  geom_point(data = df_start, mapping = aes(x = x07, y = response), colour = "black") +
+  geom_line(data = df_start, mapping = aes(x = x07, y = response), colour = "black") +
+  theme_minimal()
+```
+
+###x09 vs response
+
+```{r}
+ggplot(NULL, aes(x, y)) +
+  geom_point(data = ready_x_A, mapping = aes(x = x09, y = response), colour = "grey") +
+  geom_line(data = ready_x_A, mapping = aes(x = x09, y = response), colour = "grey") +
+  geom_point(data = df_start, mapping = aes(x = x09, y = response), colour = "black") +
+  geom_line(data = df_start, mapping = aes(x = x09, y = response), colour = "black") +
+  theme_minimal()
+```
+
+###x10 vs response
+
+```{r}
+ggplot(NULL, aes(x, y)) +
+  geom_point(data = ready_x_A, mapping = aes(x = x10, y = response), colour = "grey") +
+  geom_line(data = ready_x_A, mapping = aes(x = x10, y = response), colour = "grey") +
+  geom_point(data = df_start, mapping = aes(x = x10, y = response), colour = "black") +
+  geom_line(data = df_start, mapping = aes(x = x10, y = response), colour = "black") +
+  theme_minimal()
+```
+
+###x11 vs response
+
+```{r}
+ggplot(NULL, aes(x, y)) +
+  geom_point(data = ready_x_A, mapping = aes(x = x11, y = response), colour = "grey") +
+  geom_line(data = ready_x_A, mapping = aes(x = x11, y = response), colour = "grey") +
+  geom_point(data = df_start, mapping = aes(x = x11, y = response), colour = "black") +
+  geom_line(data = df_start, mapping = aes(x = x11, y = response), colour = "black") +
+  theme_minimal()
+```
+
+###x21 vs response
+
+```{r}
+ggplot(NULL, aes(x, y)) +
+  geom_point(data = ready_x_A, mapping = aes(x = x21, y = response), colour = "grey") +
+  geom_line(data = ready_x_A, mapping = aes(x = x21, y = response), colour = "grey") +
+  geom_point(data = df_start, mapping = aes(x = x21, y = response), colour = "black") +
+  geom_line(data = df_start, mapping = aes(x = x21, y = response), colour = "black") +
+  theme_minimal()
+```
+
+#Breaking up the continuous variables based on the binary output
+
+```{r}
+train_outputs %>% ggplot(mapping = aes(x = response, y = outcome)) +
+  geom_point()
+```
+
+# Correlation f0r large Dataset (Outputs included)
+
+## Correlation between X inputs
+
+```{r}
+ready_x_A %>% select(!response)%>% cor() %>% corrplot::corrplot(type = 'upper')
+```
+
+## Correlation between V inputs
+
+```{r}
+ready_v_A %>% select(!response)%>% cor() %>% corrplot::corrplot(type = 'upper')
+```
+
+## Correlation between X inputs with response
+
+```{r}
+ready_x_A %>% cor() %>% corrplot::corrplot(type = 'upper')
+```
+
+## Correlation between V inputs with response
+
+```{r}
+ready_v_A %>% cor() %>% corrplot::corrplot(type = 'upper')
+```
+
+# Conclusion
+
+In this HTML, you can see that we are reading and analysing the data of all the four datasets and understanding their significance. 
+
+
+
+
+
+
+
+
+

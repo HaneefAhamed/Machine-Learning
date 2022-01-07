@@ -1,0 +1,354 @@
+---
+title: "Part 4 - Classification"
+author: "Haneef Ahamed Mohammad"
+date: "14/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+### Loading the lIbraries
+
+```{r, load_packages}
+library(tidyverse)
+library(rstanarm)
+library(caret)
+library(ranger)
+library(xgboost)
+```
+
+##Loading Models 
+
+```{r}
+re_load_mod_03_x_B_add <- readr::read_rds("large_x_B_add_model.rds")
+```
+
+```{r}
+re_load_mod_03_x_B_pair <- readr::read_rds("large_x_B_pair_model.rds")
+```
+
+```{r}
+re_load_mod_03_x_B_enet_pair <- readr::read_rds("large_x_B_enet_pair_model.rds")
+```
+
+```{r}
+re_load_mod_03_x_B_enet_poly <- readr::read_rds("large_v_B_enet_poly_model.rds")
+```
+
+
+```{r}
+re_load_mod_03_x_B_nnet_add <- readr::read_rds("large_x_B_nnet_add_model.rds")
+```
+
+
+```{r}
+re_load_mod_x_B_rf_add <- readr::read_rds("large_x_B_rf_add_model.rds")
+```
+
+
+```{r}
+re_load_mod_03_x_B_nnet_add <- readr::read_rds("large_x_B_nnet_add_model.rds")
+```
+
+```{r}
+re_load_mod_x_B_rf_add <- readr::read_rds("large_x_B_rf_add_model.rds")
+```
+
+```{r}
+re_load_fit_xgb <- readr::read_rds("large_x_B_fit_xgb_add_model.rds")
+```
+
+```{r}
+re_load_mod_03_x_B_xgb_add <- readr::read_rds("large_x_B_xgb_add_model.rds")
+```
+
+```{r}
+re_load_mod_03_x_B_rpart_add <- readr::read_rds("large_x_B_rpart_add_model.rds")
+```
+
+```{r}
+re_load_mod_03_x_B_svm_add <- readr::read_rds("large_x_B_svm_add_model.rds")
+```
+
+### Loading V-variables
+
+```{r, eval=TRUE}
+re_load_mod_03_v_B_add <- readr::read_rds("large_v_B_add_model.rds")
+```
+
+```{r}
+re_load_mod_03_v_B_pair <- readr::read_rds("large_v_B_pair_model.rds")
+```
+
+```{r}
+re_load_mod_03_v_B_enet_pair <- readr::read_rds("large_v_B_enet_pair_model.rds")
+```
+
+```{r}
+re_load_mod_03_v_B_enet_poly <- readr::read_rds("large_v_B_enet_poly_model.rds")
+```
+
+
+```{r}
+re_load_mod_03_v_B_nnet_add <- readr::read_rds("large_v_B_nnet_add_model.rds")
+```
+
+```{r}
+re_load_mod_v_B_rf_add <- readr::read_rds("large_v_B_rf_add_model.rds")
+```
+
+```{r}
+re_load_xgb_grid_v_B <- readr::read_rds("large_v_B_fit_xgb_add_model.rds")
+```
+
+```{r}
+re_load_mod_03_v_B_xgb_add <- readr::read_rds("large_v_B_xgb_add_model.rds")
+```
+
+```{r}
+re_load_mod_03_v_B_rpart_add <- readr::read_rds("large_v_B_rpart_add_model.rds")
+```
+
+```{r}
+re_load_mod_03_v_B_svm_add <- readr::read_rds("large_v_B_svm_add_model.rds")
+```
+
+# Models for Classification
+
+## Additive
+
+```{r}
+re_load_mod_03_x_B_add
+```
+
+```{r}
+coefplot::coefplot(re_load_mod_03_x_B_add)
+```
+
+```{r}
+re_load_mod_03_x_B_add$bestTune
+```
+
+## PAirwise
+
+```{r}
+re_load_mod_03_x_B_pair
+```
+
+## Elastic net with Pairwise
+
+```{r}
+re_load_mod_03_x_B_enet_pair
+```
+
+## Elastic net with Polynomial 
+
+```{r}
+re_load_mod_03_x_B_enet_poly
+```
+
+## Neural Network 
+```{r}
+re_load_mod_03_x_B_nnet_add
+```
+
+## Random Forest
+
+```{r}
+re_load_mod_x_B_rf_add
+```
+
+## XgBoost
+
+```{r}
+re_load_fit_xgb 
+```
+
+## XgBoost with Tuning
+
+```{r}
+re_load_mod_03_x_B_xgb_add 
+```
+
+## Cart 
+
+```{r}
+re_load_mod_03_x_B_rpart_add
+```
+
+## SVM 
+
+```{r}
+re_load_mod_03_x_B_svm_add 
+```
+
+### Loading V-variables
+
+## Additive
+```{r, eval=TRUE}
+re_load_mod_03_v_B_add 
+```
+
+## Pairwise
+
+```{r}
+re_load_mod_03_v_B_pair 
+```
+
+## Elastic Net with Pairwise
+
+```{r}
+re_load_mod_03_v_B_enet_pair 
+```
+
+## Elastic Net with Poly
+
+```{r}
+re_load_mod_03_v_B_enet_poly 
+```
+
+## Neural Network 
+
+```{r}
+re_load_mod_03_v_B_nnet_add 
+```
+
+## Random Forest
+
+```{r}
+re_load_mod_v_B_rf_add 
+```
+
+## XgBoost
+
+```{r}
+re_load_xgb_grid_v_B 
+```
+
+## XgBoost with Tuning
+
+```{r}
+re_load_mod_03_v_B_xgb_add 
+```
+
+## Cart
+
+```{r}
+re_load_mod_03_v_B_rpart_add 
+```
+
+## SVM
+
+```{r}
+re_load_mod_03_v_B_svm_add 
+```
+
+# Performance for X
+
+```{r}
+set.seed(2021)
+
+my_results <- resamples(list(LM_1 = re_load_mod_03_x_B_add,
+                             LM_2 = re_load_mod_03_x_B_pair,
+                             ENET_1 = re_load_mod_03_x_B_enet_pair,
+                             ENET_2 = re_load_mod_03_x_B_enet_poly,
+                             SVM = re_load_mod_03_x_B_svm_add,
+                             NNET = re_load_mod_03_x_B_nnet_add,
+                             CART = re_load_mod_03_x_B_rpart_add,
+                             RF = re_load_mod_x_B_rf_add,
+                             XGB = re_load_mod_03_x_B_xgb_add))
+
+dotplot(my_results, metric = "ROC")
+```
+
+# Perforance for V
+
+```{r}
+set.seed(2021)
+
+my_results <- resamples(list(LM_1 = re_load_mod_03_v_B_add,
+                             LM_2 = re_load_mod_03_v_B_pair,
+                             ENET_1 = re_load_mod_03_v_B_enet_pair,
+                             ENET_2 = re_load_mod_03_v_B_enet_poly,
+                             SVM = re_load_mod_03_v_B_svm_add,
+                             NNET = re_load_mod_03_v_B_nnet_add,
+                             CART = re_load_mod_03_v_B_rpart_add,
+                             RF = re_load_mod_v_B_rf_add,
+                             XGB = re_load_mod_03_v_B_xgb_add))
+
+dotplot(my_results, metric = "ROC")
+```
+
+
+# Confusion matrices
+
+
+###  Linear additive features
+
+### pair-wise interactions between the inputs
+
+### Elastic Net
+```{r}
+confusionMatrix(re_load_mod_03_x_B_add)
+
+confusionMatrix(re_load_mod_03_x_B_pair)
+
+confusionMatrix(re_load_mod_03_x_B_enet_pair)
+
+confusionMatrix(re_load_mod_03_x_B_enet_poly)
+```
+
+### Neural Network
+
+```{r}
+confusionMatrix(re_load_mod_03_x_B_nnet_add)
+```
+
+
+### Random Forest
+```{r}
+confusionMatrix(re_load_mod_x_B_rf_add)
+```
+
+### Xgboost
+
+```{r}
+confusionMatrix(re_load_fit_xgb)
+```
+
+### Xgboost with tuning
+
+```{r}
+confusionMatrix(re_load_mod_03_x_B_xgb_add)
+```
+
+### SVM
+
+```{r}
+confusionMatrix(re_load_mod_03_x_B_svm_add)
+```
+
+### CART
+```{r}
+confusionMatrix(re_load_mod_03_x_B_rpart_add)
+```
+
+# Conclusion 
+
+In this HTML , we are building Classification models. We used caret library we does the testing, tuning of us, I used a repeated cross validation with 5 folds and 2 repeats as my resampling scheme. And we have around 9 models, and for XgBoost and Random Forest we have our own custom tuning. 
+
+Xgboost and Random Forest defintely out perform than compared our simple logistic models. Acoording to our ROC and Accuracy. 
+
+
+

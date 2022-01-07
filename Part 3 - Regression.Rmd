@@ -1,0 +1,345 @@
+---
+title: "Part 3 - Regression"
+author: "Haneef Ahamed Mohammad"
+date: "12/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+# Loading the lIbraries
+
+```{r, load_packages}
+library(tidyverse)
+library(rstanarm)
+library(caret)
+library(ranger)
+library(xgboost)
+```
+
+
+# Loading All the Models based on Regression
+
+```{r, eval=TRUE}
+re_load_mod_03_x_A_add <- readr::read_rds("large_x_A_add_model.rds")
+```
+
+```{r}
+re_load_mod_03_x_A_pair <- readr::read_rds("large_x_A_pair_model.rds")
+```
+
+```{r}
+re_load_mod_03_x_A_enet_pair <- readr::read_rds("large_x_A_enet_pair_model.rds")
+```
+
+```{r}
+re_load_mod_03_x_A_enet_poly <- readr::read_rds("large_x_A_enet_poly_model.rds")
+```
+
+```{r}
+re_load_mod_03_x_A_nnet_add <- readr::read_rds("large_x_A_nnet_add_model.rds")
+```
+
+```{r}
+re_load_mod_x_A_rf_add <- readr::read_rds("large_x_A_rf_add_model.rds")
+```
+
+```{r}
+re_load_fit_xgb <- readr::read_rds("large_x_A_fit_xgb_add_model.rds")
+```
+
+```{r}
+re_load_mod_03_x_A_xgb_add <- readr::read_rds("large_x_A_xgb_add_model.rds")
+```
+
+```{r}
+re_load_mod_03_x_A_rpart_add <- readr::read_rds("large_x_A_rpart_add_model.rds")
+```
+
+```{r}
+re_load_mod_03_x_A_svm_add <- readr::read_rds("large_x_A_svm_add_model.rds")
+```
+
+# Loading V-variables models
+
+```{r, eval=TRUE}
+re_load_mod_03_v_A_add <- readr::read_rds("large_v_A_add_model.rds")
+```
+
+```{r}
+re_load_mod_03_v_A_pair <- readr::read_rds("large_v_A_pair_model.rds")
+```
+
+```{r}
+re_load_mod_03_v_A_enet_pair <- readr::read_rds("large_v_A_enet_pair_model.rds")
+```
+
+```{r}
+re_load_mod_03_v_A_enet_poly <- readr::read_rds("large_v_A_enet_poly_model.rds")
+```
+
+
+```{r}
+re_load_mod_03_v_A_nnet_add <- readr::read_rds("large_v_A_nnet_add_model.rds")
+```
+
+```{r}
+re_load_mod_v_A_rf_add <- readr::read_rds("large_v_A_rf_add_model.rds")
+```
+
+```{r}
+re_load_fit_xgb_v_A <- readr::read_rds("large_v_A_fit_xgb_add_model.rds")
+```
+
+```{r}
+re_load_mod_03_v_A_xgb_add <- readr::read_rds("large_v_A_xgb_add_model.rds")
+```
+
+```{r}
+re_load_mod_03_v_A_rpart_add <- readr::read_rds("large_v_A_rpart_add_model.rds")
+```
+
+```{r}
+re_load_mod_03_v_A_svm_add <- readr::read_rds("large_v_A_svm_add_model.rds")
+```
+
+# Understanding different models
+
+## Additive Model for X-variable
+
+```{r, eval=TRUE}
+re_load_mod_03_x_A_add 
+```
+
+## Pairwise Model for X-variable
+
+```{r}
+re_load_mod_03_x_A_pair 
+```
+
+## Elastic Model for X-variable with Pairwise Interaction
+
+```{r}
+re_load_mod_03_x_A_enet_pair
+```
+
+## Elastic Model for X-variable with Polynomial Interaction
+
+```{r}
+re_load_mod_03_x_A_enet_poly 
+```
+
+# Neural Network Model for X-variable 
+
+```{r}
+re_load_mod_03_x_A_nnet_add
+```
+
+## Visualizing the neural network 
+
+```{r}
+plot(re_load_mod_03_x_A_nnet_add, xTrans = log) 
+```
+
+### Best tuned Neural 
+
+```{r}
+re_load_mod_03_x_A_nnet_add$bestTune
+```
+
+# Random forest for X - Variable
+
+```{r}
+re_load_mod_x_A_rf_add 
+```
+
+# XGBoost
+
+```{r}
+re_load_fit_xgb
+```
+
+## Visualising the XGBoost Model
+
+```{r}
+plot(re_load_fit_xgb)
+```
+
+# XGBoost with tuning
+
+```{r}
+re_load_mod_03_x_A_xgb_add
+```
+
+## Visualizing the XGboost Model with tuning
+
+```{r}
+plot(re_load_mod_03_x_A_xgb_add) 
+```
+
+## Best tuned Xgboost model
+
+```{r}
+re_load_mod_03_x_A_xgb_add$bestTune
+```
+
+# Cart Model
+
+```{r}
+re_load_mod_03_x_A_rpart_add 
+```
+
+# SVM
+
+```{r}
+re_load_mod_03_x_A_svm_add 
+```
+
+# Analysing the Performance of X - variable for Regression using RSME metric
+
+```{r}
+set.seed(2021)
+
+my_results <- resamples(list(LM_1 = re_load_mod_03_x_A_add,
+                             LM_2 = re_load_mod_03_x_A_pair,
+                             ENET_1 = re_load_mod_03_x_A_enet_pair,
+                             ENET_2 = re_load_mod_03_x_A_enet_poly,
+                             SVM = re_load_mod_03_x_A_svm_add,
+                             NNET = re_load_mod_03_x_A_nnet_add,
+                             CART = re_load_mod_03_x_A_rpart_add,
+                             RF = re_load_mod_x_A_rf_add,
+                             XGB = re_load_mod_03_x_A_xgb_add))
+
+dotplot(my_results, metric = "RMSE")
+```
+
+
+# Regression on V-variable
+
+## Additive Model for V-variable
+
+```{r, eval=TRUE}
+re_load_mod_03_v_A_add 
+```
+
+## Pairwise Model for V-variable
+
+```{r}
+re_load_mod_03_v_A_pair 
+```
+
+## Elastic Model for V -variable with Pairwise Interaction
+
+```{r}
+re_load_mod_03_v_A_enet_pair
+```
+
+## Elastic Model for V -variable with Polynomial Interaction
+
+```{r}
+re_load_mod_03_v_A_enet_poly 
+```
+
+# Neural Network
+
+Neural Network Model with tuning
+
+```{r}
+re_load_mod_03_v_A_nnet_add
+```
+
+## Visualizing the neural network 
+
+```{r}
+plot(re_load_mod_03_v_A_nnet_add, xTrans = log) 
+```
+
+## The best tuned neural network 
+
+```{r}
+re_load_mod_03_v_A_nnet_add$bestTune
+```
+
+## Random Forest
+
+```{r}
+re_load_mod_v_A_rf_add 
+```
+
+# Xgboodt Model
+
+```{r}
+re_load_fit_xgb_v_A
+```
+
+## Visualizing the XgBoost Model
+
+```{r}
+plot(re_load_fit_xgb_v_A)
+```
+
+## Xgboost Model with Tuning 
+
+```{r}
+re_load_mod_03_v_A_xgb_add
+```
+
+## Visualizing the XgBoost Model with tuning
+
+```{r}
+plot(re_load_mod_03_x_A_xgb_add) 
+```
+
+## The best tuned Xgboost
+
+```{r}
+re_load_mod_03_v_A_xgb_add$bestTune
+```
+
+## Cart Model
+
+```{r}
+re_load_mod_03_v_A_rpart_add 
+```
+
+## SVM 
+
+```{r}
+re_load_mod_03_v_A_svm_add 
+```
+
+## Evaluting the performance of the V-variable regression models with RSME metric
+
+```{r}
+set.seed(2021)
+
+my_results <- resamples(list(LM_1 = re_load_mod_03_v_A_add,
+                             LM_2 = re_load_mod_03_v_A_pair,
+                             ENET_1 = re_load_mod_03_v_A_enet_pair,
+                             ENET_2 = re_load_mod_03_v_A_enet_poly,
+                             SVM = re_load_mod_03_v_A_svm_add,
+                             NNET = re_load_mod_03_v_A_nnet_add,
+                             CART = re_load_mod_03_v_A_rpart_add,
+                             RF = re_load_mod_v_A_rf_add,
+                             XGB = re_load_mod_03_v_A_xgb_add))
+
+dotplot(my_results, metric = "RMSE")
+```
+
+# Conclusion
+
+In this HTML , we are building Regression models. We used caret library we does the testing, tuning of us, I used a repeated cross validation with 5 folds and 2 repeats as my resampling scheme. And we have around 9 models, and for XgBoost and Neural Network we have our own custom tuning. 
+
+Xgboost and Neural Network defintely out perform than compared our simple linear model.
+
